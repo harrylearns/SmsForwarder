@@ -21,6 +21,20 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
 
     private val TAG: String = LoggingInterceptor::class.java.simpleName
 
+    companion object {
+        // Compiled regex pattern for better performance on large response bodies
+        private val SENSITIVE_DATA_PATTERN = Regex(
+            "\"(token|password|api_key|apikey|secret|access_token|refresh_token|private_key|credential)\"",
+            RegexOption.IGNORE_CASE
+        )
+        
+        // Sensitive header keywords for efficient Set lookup
+        private val SENSITIVE_HEADER_KEYWORDS = setOf(
+            "authorization", "token", "api-key", "apikey", "api_key",
+            "secret", "password", "credential", "cookie", "session"
+        )
+    }
+
     init {
         level = if (App.isDebug) Level.BODY else Level.PARAM
     }
@@ -150,27 +164,11 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
     /**
      * Check if header contains sensitive information
      * SECURITY: Prevents logging of credentials and tokens
+     * Optimized with Set lookup for performance
      */
     private fun isSensitiveHeader(headerName: String): Boolean {
         val lowerName = headerName.lowercase()
-        return lowerName.contains("authorization") ||
-                lowerName.contains("token") ||
-                lowerName.contains("api-key") ||
-                lowerName.contains("apikey") ||
-                lowerName.contains("api_key") ||
-                lowerName.contains("secret") ||
-                lowerName.contains("password") ||
-                lowerName.contains("credential") ||
-                lowerName.contains("cookie") ||
-                lowerName.contains("session")
-    }
-
-    companion object {
-        // Compiled regex pattern for better performance on large response bodies
-        private val SENSITIVE_DATA_PATTERN = Regex(
-            "\"(token|password|api_key|apikey|secret|access_token|refresh_token|private_key|credential)\"",
-            RegexOption.IGNORE_CASE
-        )
+        return SENSITIVE_HEADER_KEYWORDS.any { lowerName.contains(it) }
     }
 
     /**

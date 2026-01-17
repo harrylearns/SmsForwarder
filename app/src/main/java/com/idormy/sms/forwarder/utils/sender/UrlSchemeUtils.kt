@@ -19,6 +19,12 @@ class UrlSchemeUtils private constructor() {
     companion object {
 
         private val TAG: String = UrlSchemeUtils::class.java.simpleName
+        
+        // Allowed URL schemes for validation (avoid repeated allocation)
+        private val ALLOWED_SCHEMES = setOf("http", "https", "sms", "tel", "mailto")
+        
+        // Dangerous URL schemes to block
+        private val DANGEROUS_SCHEMES = setOf("file", "javascript", "data", "vbscript")
 
         /**
          * SECURITY: Validates URL scheme to prevent injection attacks and SSRF
@@ -35,8 +41,7 @@ class UrlSchemeUtils private constructor() {
             val scheme = if (schemeEnd > 0) urlScheme.substring(0, schemeEnd).lowercase() else ""
             
             // Allow only safe schemes - block file://, javascript:, data:, etc.
-            val allowedSchemes = listOf("http", "https", "sms", "tel", "mailto")
-            val hasValidScheme = allowedSchemes.contains(scheme)
+            val hasValidScheme = ALLOWED_SCHEMES.contains(scheme)
             
             if (!hasValidScheme && scheme.isNotEmpty()) {
                 // Allow custom app schemes but log for audit (only log scheme, not full URL)
@@ -44,8 +49,7 @@ class UrlSchemeUtils private constructor() {
             }
             
             // Block dangerous patterns
-            val dangerousPatterns = listOf("file", "javascript", "data", "vbscript")
-            if (dangerousPatterns.contains(scheme)) {
+            if (DANGEROUS_SCHEMES.contains(scheme)) {
                 // SECURITY: Only log the dangerous scheme type, not the URL content
                 Log.e(TAG, "Dangerous URL scheme blocked: $scheme://")
                 return false
