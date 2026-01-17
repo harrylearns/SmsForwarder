@@ -56,7 +56,14 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
             if (logHeaders) {
                 val headers = request.headers()
                 for (i in 0 until headers.size()) {
-                    log("\t${headers.name(i)}: ${headers.value(i)}")
+                    // SECURITY: Sanitize sensitive headers (Authorization, API keys, etc.)
+                    val headerName = headers.name(i)
+                    val headerValue = if (isSensitiveHeader(headerName)) {
+                        "[REDACTED]"
+                    } else {
+                        headers.value(i)
+                    }
+                    log("\t${headerName}: ${headerValue}")
                 }
             }
 
@@ -99,7 +106,14 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
                 log(" ")
                 val headers = clone.headers()
                 for (i in 0 until headers.size()) {
-                    log("\t${headers.name(i)}: ${headers.value(i)}")
+                    // SECURITY: Sanitize sensitive response headers
+                    val headerName = headers.name(i)
+                    val headerValue = if (isSensitiveHeader(headerName)) {
+                        "[REDACTED]"
+                    } else {
+                        headers.value(i)
+                    }
+                    log("\t${headerName}: ${headerValue}")
                 }
                 log(" ")
             }
@@ -107,7 +121,13 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
             if (logBody && HttpHeaders.hasBody(clone)) {
                 if (HttpUtils.isPlaintext(responseBody?.contentType())) {
                     val body = responseBody?.string()
-                    log("\tbody:$body")
+                    // SECURITY: Don't log response bodies containing sensitive data patterns
+                    val sanitizedBody = if (body != null && containsSensitiveData(body)) {
+                        "[RESPONSE BODY CONTAINS SENSITIVE DATA - REDACTED]"
+                    } else {
+                        body
+                    }
+                    log("\tbody:$sanitizedBody")
                     responseBody = ResponseBody.create(responseBody?.contentType(), body ?: "")
                     return response.newBuilder().body(responseBody).build()
                 } else {
@@ -125,6 +145,41 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
             }
         }
         return response
+    }
+
+    /**
+     * Check if header contains sensitive information
+     * SECURITY: Prevents logging of credentials and tokens
+     */
+    private fun isSensitiveHeader(headerName: String): Boolean {
+        val lowerName = headerName.lowercase()
+        return lowerName.contains("authorization") ||
+                lowerName.contains("token") ||
+                lowerName.contains("api-key") ||
+                lowerName.contains("apikey") ||
+                lowerName.contains("api_key") ||
+                lowerName.contains("secret") ||
+                lowerName.contains("password") ||
+                lowerName.contains("credential") ||
+                lowerName.contains("cookie") ||
+                lowerName.contains("session")
+    }
+
+    /**
+     * Check if response body contains sensitive data patterns
+     * SECURITY: Prevents logging of tokens, passwords, API keys
+     */
+    private fun containsSensitiveData(body: String): Boolean {
+        val lowerBody = body.lowercase()
+        return lowerBody.contains("\"token\"") ||
+                lowerBody.contains("\"password\"") ||
+                lowerBody.contains("\"api_key\"") ||
+                lowerBody.contains("\"apikey\"") ||
+                lowerBody.contains("\"secret\"") ||
+                lowerBody.contains("\"access_token\"") ||
+                lowerBody.contains("\"refresh_token\"") ||
+                lowerBody.contains("\"private_key\"") ||
+                lowerBody.contains("\"credential\"")
     }
 
 }
