@@ -58,6 +58,14 @@ object SM4Crypt {
     /**
      * DEPRECATED: encrypt() with default IV parameter
      * Use encryptSecure() instead for automatic random IV generation
+     * 
+     * NOTE: This method is kept for backward compatibility with existing code.
+     * While it defaults to a hardcoded IV (insecure), it:
+     * 1. Shows deprecation warnings to guide developers to secure API
+     * 2. Allows legacy code to continue working during migration
+     * 3. Provides ReplaceWith suggestion for easy refactoring
+     * 
+     * SECURITY: Do not use this in new code. Use encryptSecure() instead.
      */
     @Deprecated("Use encryptSecure() for automatic random IV", ReplaceWith("encryptSecure(source, key, mode)"))
     @JvmOverloads

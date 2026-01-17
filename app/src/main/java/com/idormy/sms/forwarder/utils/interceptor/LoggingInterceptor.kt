@@ -33,6 +33,9 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
             "authorization", "token", "api-key", "apikey", "api_key",
             "secret", "password", "credential", "cookie", "session"
         )
+        
+        // Maximum response body size to scan for sensitive data (50KB)
+        private const val MAX_RESPONSE_BODY_SCAN_SIZE = 50000
     }
 
     init {
@@ -178,7 +181,7 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
      */
     private fun containsSensitiveData(body: String): Boolean {
         // Quick length check - don't scan very large bodies
-        if (body.length > 50000) return true // Assume large responses may contain sensitive data
+        if (body.length > MAX_RESPONSE_BODY_SCAN_SIZE) return true // Assume large responses may contain sensitive data
         
         return SENSITIVE_DATA_PATTERN.containsMatchIn(body)
     }

@@ -44,7 +44,11 @@ class UrlSchemeUtils private constructor() {
             val hasValidScheme = ALLOWED_SCHEMES.contains(scheme)
             
             if (!hasValidScheme && scheme.isNotEmpty()) {
-                // Allow custom app schemes but log for audit (only log scheme, not full URL)
+                // SECURITY NOTE: Custom app schemes are allowed for flexibility (e.g., myapp://)
+                // This is needed for Android app-to-app communication via URL schemes
+                // The scheme is logged for security audit purposes
+                // Risk: Custom schemes could potentially be used for SSRF if app handles them
+                // Mitigation: Only log scheme, not full URL. Users should validate custom schemes.
                 Log.w(TAG, "Custom URL scheme detected: $scheme://")
             }
             
