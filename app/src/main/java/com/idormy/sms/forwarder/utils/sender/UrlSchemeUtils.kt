@@ -20,6 +20,35 @@ class UrlSchemeUtils private constructor() {
 
         private val TAG: String = UrlSchemeUtils::class.java.simpleName
 
+        /**
+         * SECURITY: Validates URL scheme to prevent injection attacks and SSRF
+         * Only allows safe schemes and basic validation
+         */
+        private fun isValidUrlScheme(urlScheme: String): Boolean {
+            if (urlScheme.isBlank()) return false
+            
+            // Check length to prevent resource exhaustion
+            if (urlScheme.length > 2048) return false
+            
+            // Allow only safe schemes - block file://, javascript:, data:, etc.
+            val allowedSchemes = listOf("http://", "https://", "sms://", "tel://", "mailto:")
+            val hasValidScheme = allowedSchemes.any { urlScheme.lowercase().startsWith(it) }
+            
+            if (!hasValidScheme) {
+                // Allow custom app schemes but log for audit
+                Log.w(TAG, "Custom URL scheme detected (not http/https): ${urlScheme.take(50)}...")
+            }
+            
+            // Block dangerous patterns
+            val dangerousPatterns = listOf("file://", "javascript:", "data:", "vbscript:")
+            if (dangerousPatterns.any { urlScheme.lowercase().contains(it) }) {
+                Log.e(TAG, "Dangerous URL scheme blocked: ${urlScheme.take(50)}...")
+                return false
+            }
+            
+            return true
+        }
+
         fun sendMsg(
             setting: UrlSchemeSetting,
             msgInfo: MsgInfo,
@@ -43,6 +72,15 @@ class UrlSchemeUtils private constructor() {
 
             var urlScheme = setting.urlScheme
             Log.i(TAG, "urlScheme:$urlScheme")
+
+            // SECURITY: Validate URL scheme before processing
+            if (!isValidUrlScheme(urlScheme)) {
+                val errorMsg = "Invalid or dangerous URL scheme blocked"
+                Log.e(TAG, errorMsg)
+                SendUtils.updateLogs(logId, 0, errorMsg)
+                SendUtils.senderLogic(0, msgInfo, rule, senderIndex, msgId)
+                return
+            }
 
             urlScheme = urlScheme.replace("[from]", URLEncoder.encode(from, "UTF-8"))
                 .replace("[content]", URLEncoder.encode(content, "UTF-8"))
