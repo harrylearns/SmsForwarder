@@ -24,6 +24,23 @@ object Log {
     private lateinit var appContext: Context
     private var initDate: String = ""
 
+    /**
+     * SECURITY WARNING: Logging is enabled only in debug mode.
+     * Logs are written to:
+     * 1. Android Logcat (can be read by apps with READ_LOGS permission)
+     * 2. File system at /cache/logs/log_YYYY-MM-DD.txt
+     *
+     * DO NOT log:
+     * - SMS message content
+     * - Notification content
+     * - API keys, tokens, or credentials
+     * - User passwords
+     * - Personal identifiable information (PII)
+     * - Private keys or secrets
+     *
+     * Only log non-sensitive debugging information.
+     */
+
     fun init(context: Context) {
         appContext = context
         createLogFile()

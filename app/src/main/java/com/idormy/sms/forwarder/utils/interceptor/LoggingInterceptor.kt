@@ -21,6 +21,23 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
 
     private val TAG: String = LoggingInterceptor::class.java.simpleName
 
+    companion object {
+        // Compiled regex pattern for better performance on large response bodies
+        private val SENSITIVE_DATA_PATTERN = Regex(
+            "\"(token|password|api_key|apikey|secret|access_token|refresh_token|private_key|credential)\"",
+            RegexOption.IGNORE_CASE
+        )
+        
+        // Sensitive header keywords for efficient Set lookup
+        private val SENSITIVE_HEADER_KEYWORDS = setOf(
+            "authorization", "token", "api-key", "apikey", "api_key",
+            "secret", "password", "credential", "cookie", "session"
+        )
+        
+        // Maximum response body size to scan for sensitive data (50KB)
+        private const val MAX_RESPONSE_BODY_SCAN_SIZE = 50000
+    }
+
     init {
         level = if (App.isDebug) Level.BODY else Level.PARAM
     }
@@ -56,7 +73,14 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
             if (logHeaders) {
                 val headers = request.headers()
                 for (i in 0 until headers.size()) {
-                    log("\t${headers.name(i)}: ${headers.value(i)}")
+                    // SECURITY: Sanitize sensitive headers (Authorization, API keys, etc.)
+                    val headerName = headers.name(i)
+                    val headerValue = if (isSensitiveHeader(headerName)) {
+                        "[REDACTED]"
+                    } else {
+                        headers.value(i)
+                    }
+                    log("\t${headerName}: ${headerValue}")
                 }
             }
 
@@ -99,7 +123,14 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
                 log(" ")
                 val headers = clone.headers()
                 for (i in 0 until headers.size()) {
-                    log("\t${headers.name(i)}: ${headers.value(i)}")
+                    // SECURITY: Sanitize sensitive response headers
+                    val headerName = headers.name(i)
+                    val headerValue = if (isSensitiveHeader(headerName)) {
+                        "[REDACTED]"
+                    } else {
+                        headers.value(i)
+                    }
+                    log("\t${headerName}: ${headerValue}")
                 }
                 log(" ")
             }
@@ -107,7 +138,13 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
             if (logBody && HttpHeaders.hasBody(clone)) {
                 if (HttpUtils.isPlaintext(responseBody?.contentType())) {
                     val body = responseBody?.string()
-                    log("\tbody:$body")
+                    // SECURITY: Don't log response bodies containing sensitive data patterns
+                    val sanitizedBody = if (body != null && containsSensitiveData(body)) {
+                        "[RESPONSE BODY CONTAINS SENSITIVE DATA - REDACTED]"
+                    } else {
+                        body
+                    }
+                    log("\tbody:$sanitizedBody")
                     responseBody = ResponseBody.create(responseBody?.contentType(), body ?: "")
                     return response.newBuilder().body(responseBody).build()
                 } else {
@@ -125,6 +162,28 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
             }
         }
         return response
+    }
+
+    /**
+     * Check if header contains sensitive information
+     * SECURITY: Prevents logging of credentials and tokens
+     * Optimized with Set lookup for performance
+     */
+    private fun isSensitiveHeader(headerName: String): Boolean {
+        val lowerName = headerName.lowercase()
+        return SENSITIVE_HEADER_KEYWORDS.any { lowerName.contains(it) }
+    }
+
+    /**
+     * Check if response body contains sensitive data patterns
+     * SECURITY: Prevents logging of tokens, passwords, API keys
+     * Optimized with compiled regex for performance
+     */
+    private fun containsSensitiveData(body: String): Boolean {
+        // Quick length check - don't scan very large bodies
+        if (body.length > MAX_RESPONSE_BODY_SCAN_SIZE) return true // Assume large responses may contain sensitive data
+        
+        return SENSITIVE_DATA_PATTERN.containsMatchIn(body)
     }
 
 }

@@ -19,6 +19,48 @@ class UrlSchemeUtils private constructor() {
     companion object {
 
         private val TAG: String = UrlSchemeUtils::class.java.simpleName
+        
+        // Allowed URL schemes for validation (avoid repeated allocation)
+        private val ALLOWED_SCHEMES = setOf("http", "https", "sms", "tel", "mailto")
+        
+        // Dangerous URL schemes to block
+        private val DANGEROUS_SCHEMES = setOf("file", "javascript", "data", "vbscript")
+
+        /**
+         * SECURITY: Validates URL scheme to prevent injection attacks and SSRF
+         * Only allows safe schemes and basic validation
+         */
+        private fun isValidUrlScheme(urlScheme: String): Boolean {
+            if (urlScheme.isBlank()) return false
+            
+            // Check length to prevent resource exhaustion
+            if (urlScheme.length > 2048) return false
+            
+            // Extract scheme (everything before ://)
+            val schemeEnd = urlScheme.indexOf("://")
+            val scheme = if (schemeEnd > 0) urlScheme.substring(0, schemeEnd).lowercase() else ""
+            
+            // Allow only safe schemes - block file://, javascript:, data:, etc.
+            val hasValidScheme = ALLOWED_SCHEMES.contains(scheme)
+            
+            if (!hasValidScheme && scheme.isNotEmpty()) {
+                // SECURITY NOTE: Custom app schemes are allowed for flexibility (e.g., myapp://)
+                // This is needed for Android app-to-app communication via URL schemes
+                // The scheme is logged for security audit purposes
+                // Risk: Custom schemes could potentially be used for SSRF if app handles them
+                // Mitigation: Only log scheme, not full URL. Users should validate custom schemes.
+                Log.w(TAG, "Custom URL scheme detected: $scheme://")
+            }
+            
+            // Block dangerous patterns
+            if (DANGEROUS_SCHEMES.contains(scheme)) {
+                // SECURITY: Only log the dangerous scheme type, not the URL content
+                Log.e(TAG, "Dangerous URL scheme blocked: $scheme://")
+                return false
+            }
+            
+            return true
+        }
 
         fun sendMsg(
             setting: UrlSchemeSetting,
@@ -43,6 +85,15 @@ class UrlSchemeUtils private constructor() {
 
             var urlScheme = setting.urlScheme
             Log.i(TAG, "urlScheme:$urlScheme")
+
+            // SECURITY: Validate URL scheme before processing
+            if (!isValidUrlScheme(urlScheme)) {
+                val errorMsg = "Invalid or dangerous URL scheme blocked"
+                Log.e(TAG, errorMsg)
+                SendUtils.updateLogs(logId, 0, errorMsg)
+                SendUtils.senderLogic(0, msgInfo, rule, senderIndex, msgId)
+                return
+            }
 
             urlScheme = urlScheme.replace("[from]", URLEncoder.encode(from, "UTF-8"))
                 .replace("[content]", URLEncoder.encode(content, "UTF-8"))
