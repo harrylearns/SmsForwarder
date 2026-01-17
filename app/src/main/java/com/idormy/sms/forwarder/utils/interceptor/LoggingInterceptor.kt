@@ -165,21 +165,24 @@ class LoggingInterceptor(private val logId: Long) : HttpLoggingInterceptor("cust
                 lowerName.contains("session")
     }
 
+    companion object {
+        // Compiled regex pattern for better performance on large response bodies
+        private val SENSITIVE_DATA_PATTERN = Regex(
+            "\"(token|password|api_key|apikey|secret|access_token|refresh_token|private_key|credential)\"",
+            RegexOption.IGNORE_CASE
+        )
+    }
+
     /**
      * Check if response body contains sensitive data patterns
      * SECURITY: Prevents logging of tokens, passwords, API keys
+     * Optimized with compiled regex for performance
      */
     private fun containsSensitiveData(body: String): Boolean {
-        val lowerBody = body.lowercase()
-        return lowerBody.contains("\"token\"") ||
-                lowerBody.contains("\"password\"") ||
-                lowerBody.contains("\"api_key\"") ||
-                lowerBody.contains("\"apikey\"") ||
-                lowerBody.contains("\"secret\"") ||
-                lowerBody.contains("\"access_token\"") ||
-                lowerBody.contains("\"refresh_token\"") ||
-                lowerBody.contains("\"private_key\"") ||
-                lowerBody.contains("\"credential\"")
+        // Quick length check - don't scan very large bodies
+        if (body.length > 50000) return true // Assume large responses may contain sensitive data
+        
+        return SENSITIVE_DATA_PATTERN.containsMatchIn(body)
     }
 
 }

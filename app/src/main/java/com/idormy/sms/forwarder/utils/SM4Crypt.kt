@@ -55,13 +55,42 @@ object SM4Crypt {
         return seed
     }
 
+    /**
+     * DEPRECATED: encrypt() with default IV parameter
+     * Use encryptSecure() instead for automatic random IV generation
+     */
+    @Deprecated("Use encryptSecure() for automatic random IV", ReplaceWith("encryptSecure(source, key, mode)"))
     @JvmOverloads
     fun encrypt(source: ByteArray, key: ByteArray, mode: String = SM4_CBC_PKCS7, iv: ByteArray? = SM4_CBC_IV): ByteArray {
         return doSM4(true, source, key, mode, iv)
     }
 
+    /**
+     * Secure encryption with automatically generated random IV
+     * Returns: Pair of (encrypted data, IV used)
+     * SECURITY: Caller must store/transmit the IV alongside ciphertext
+     */
+    fun encryptSecure(source: ByteArray, key: ByteArray, mode: String = SM4_CBC_PKCS7): Pair<ByteArray, ByteArray> {
+        val iv = createRandomIV()
+        val encrypted = doSM4(true, source, key, mode, iv)
+        return Pair(encrypted, iv)
+    }
+
+    /**
+     * DEPRECATED: decrypt() with default IV parameter
+     * Use decryptSecure() instead with the IV from encryption
+     */
+    @Deprecated("Use decryptSecure() with explicit IV from encryption", ReplaceWith("decryptSecure(source, key, iv, mode)"))
     @JvmOverloads
     fun decrypt(source: ByteArray, key: ByteArray, mode: String = SM4_CBC_PKCS7, iv: ByteArray? = SM4_CBC_IV): ByteArray {
+        return doSM4(false, source, key, mode, iv)
+    }
+
+    /**
+     * Secure decryption with explicit IV (obtained from encryption)
+     * SECURITY: IV must be the same one used during encryption
+     */
+    fun decryptSecure(source: ByteArray, key: ByteArray, iv: ByteArray, mode: String = SM4_CBC_PKCS7): ByteArray {
         return doSM4(false, source, key, mode, iv)
     }
 

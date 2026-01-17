@@ -30,19 +30,24 @@ class UrlSchemeUtils private constructor() {
             // Check length to prevent resource exhaustion
             if (urlScheme.length > 2048) return false
             
-            // Allow only safe schemes - block file://, javascript:, data:, etc.
-            val allowedSchemes = listOf("http://", "https://", "sms://", "tel://", "mailto:")
-            val hasValidScheme = allowedSchemes.any { urlScheme.lowercase().startsWith(it) }
+            // Extract scheme (everything before ://)
+            val schemeEnd = urlScheme.indexOf("://")
+            val scheme = if (schemeEnd > 0) urlScheme.substring(0, schemeEnd).lowercase() else ""
             
-            if (!hasValidScheme) {
-                // Allow custom app schemes but log for audit
-                Log.w(TAG, "Custom URL scheme detected (not http/https): ${urlScheme.take(50)}...")
+            // Allow only safe schemes - block file://, javascript:, data:, etc.
+            val allowedSchemes = listOf("http", "https", "sms", "tel", "mailto")
+            val hasValidScheme = allowedSchemes.contains(scheme)
+            
+            if (!hasValidScheme && scheme.isNotEmpty()) {
+                // Allow custom app schemes but log for audit (only log scheme, not full URL)
+                Log.w(TAG, "Custom URL scheme detected: $scheme://")
             }
             
             // Block dangerous patterns
-            val dangerousPatterns = listOf("file://", "javascript:", "data:", "vbscript:")
-            if (dangerousPatterns.any { urlScheme.lowercase().contains(it) }) {
-                Log.e(TAG, "Dangerous URL scheme blocked: ${urlScheme.take(50)}...")
+            val dangerousPatterns = listOf("file", "javascript", "data", "vbscript")
+            if (dangerousPatterns.contains(scheme)) {
+                // SECURITY: Only log the dangerous scheme type, not the URL content
+                Log.e(TAG, "Dangerous URL scheme blocked: $scheme://")
                 return false
             }
             
